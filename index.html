@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>Mic Monitor</title>
+<title>Mic Monitor BT</title>
 <style>
 body{
     margin:0;
@@ -17,11 +17,8 @@ body{
 }
 .container{
     width:90%;
-    max-width:400px;
+    max-width:420px;
     text-align:center;
-}
-h1{
-    margin-bottom:10px;
 }
 button{
     width:100%;
@@ -30,93 +27,96 @@ button{
     border:none;
     border-radius:12px;
     margin-top:15px;
-    cursor:pointer;
 }
-#startBtn{background:#00c853;}
-#stopBtn{background:#d50000;}
-.slider{
-    margin-top:25px;
-}
-input[type=range]{
+#start{background:#00c853;}
+#stop{background:#d50000;}
+select,input{
     width:100%;
+    margin-top:15px;
 }
 .status{
-    margin-top:15px;
+    margin-top:12px;
     font-size:14px;
-    opacity:0.8;
 }
 </style>
 </head>
 <body>
 
 <div class="container">
-    <h1>🎤 Mic Monitor</h1>
-    <button id="startBtn">START MIC</button>
-    <button id="stopBtn" disabled>STOP MIC</button>
+    <h2>🎤 Mic → Bluetooth</h2>
 
-    <div class="slider">
-        <label>Volume</label>
-        <input type="range" min="0" max="3" step="0.1" value="1" id="gainControl">
-    </div>
+    <select id="outputSelect"></select>
+
+    <button id="start">START MIC</button>
+    <button id="stop" disabled>STOP MIC</button>
+
+    <input type="range" min="0" max="3" step="0.1" value="1" id="gain">
 
     <div class="status" id="status">Mic Off</div>
 </div>
 
 <script>
-let audioContext;
-let micStream;
-let source;
-let gainNode;
+let audioContext, source, gainNode, stream;
+let audioElement = new Audio();
+audioElement.autoplay = true;
 
-const startBtn = document.getElementById("startBtn");
-const stopBtn = document.getElementById("stopBtn");
-const statusText = document.getElementById("status");
-const gainControl = document.getElementById("gainControl");
+async function loadOutputs(){
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const outputs = devices.filter(d => d.kind === "audiooutput");
+    const select = document.getElementById("outputSelect");
+    select.innerHTML = "";
 
-startBtn.onclick = async () => {
-    try{
-        micStream = await navigator.mediaDevices.getUserMedia({
-            audio:{
-                echoCancellation:true,
-                noiseSuppression:true,
-                autoGainControl:false
-            }
-        });
+    outputs.forEach(d=>{
+        const opt = document.createElement("option");
+        opt.value = d.deviceId;
+        opt.text = d.label || "Bluetooth / Speaker";
+        select.appendChild(opt);
+    });
+}
 
-        audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        source = audioContext.createMediaStreamSource(micStream);
-        gainNode = audioContext.createGain();
+document.getElementById("start").onclick = async ()=>{
+    stream = await navigator.mediaDevices.getUserMedia({
+        audio:{
+            echoCancellation:true,
+            noiseSuppression:true,
+            autoGainControl:false
+        }
+    });
 
-        gainNode.gain.value = gainControl.value;
+    audioContext = new AudioContext();
+    source = audioContext.createMediaStreamSource(stream);
+    gainNode = audioContext.createGain();
+    gainNode.gain.value = document.getElementById("gain").value;
 
-        source.connect(gainNode);
-        gainNode.connect(audioContext.destination);
+    const dest = audioContext.createMediaStreamDestination();
+    source.connect(gainNode);
+    gainNode.connect(dest);
 
-        startBtn.disabled = true;
-        stopBtn.disabled = false;
-        statusText.innerText = "Mic ON";
-        statusText.style.color = "#00e676";
+    audioElement.srcObject = dest.stream;
 
-    }catch(err){
-        alert("Mic access denied or not supported");
-        console.error(err);
+    const deviceId = document.getElementById("outputSelect").value;
+    if (audioElement.setSinkId) {
+        await audioElement.setSinkId(deviceId);
     }
+
+    document.getElementById("status").innerText = "Mic ON → Bluetooth";
+    document.getElementById("start").disabled = true;
+    document.getElementById("stop").disabled = false;
 };
 
-stopBtn.onclick = () => {
-    micStream.getTracks().forEach(track => track.stop());
+document.getElementById("stop").onclick = ()=>{
+    stream.getTracks().forEach(t=>t.stop());
     audioContext.close();
-    startBtn.disabled = false;
-    stopBtn.disabled = true;
-    statusText.innerText = "Mic Off";
-    statusText.style.color = "white";
+    document.getElementById("status").innerText = "Mic Off";
+    document.getElementById("start").disabled = false;
+    document.getElementById("stop").disabled = true;
 };
 
-gainControl.oninput = () => {
-    if(gainNode){
-        gainNode.gain.value = gainControl.value;
-    }
+document.getElementById("gain").oninput = e=>{
+    if(gainNode) gainNode.gain.value = e.target.value;
 };
+
+loadOutputs();
 </script>
 
 </body>
