@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Mic Monitor</title>
+<style>
+body{
+    margin:0;
+    font-family:Arial, sans-serif;
+    background:#0f0f14;
+    color:white;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    height:100vh;
+}
+.container{
+    width:90%;
+    max-width:400px;
+    text-align:center;
+}
+h1{
+    margin-bottom:10px;
+}
+button{
+    width:100%;
+    padding:18px;
+    font-size:20px;
+    border:none;
+    border-radius:12px;
+    margin-top:15px;
+    cursor:pointer;
+}
+#startBtn{background:#00c853;}
+#stopBtn{background:#d50000;}
+.slider{
+    margin-top:25px;
+}
+input[type=range]{
+    width:100%;
+}
+.status{
+    margin-top:15px;
+    font-size:14px;
+    opacity:0.8;
+}
+</style>
+</head>
+<body>
+
+<div class="container">
+    <h1>🎤 Mic Monitor</h1>
+    <button id="startBtn">START MIC</button>
+    <button id="stopBtn" disabled>STOP MIC</button>
+
+    <div class="slider">
+        <label>Volume</label>
+        <input type="range" min="0" max="3" step="0.1" value="1" id="gainControl">
+    </div>
+
+    <div class="status" id="status">Mic Off</div>
+</div>
+
+<script>
+let audioContext;
+let micStream;
+let source;
+let gainNode;
+
+const startBtn = document.getElementById("startBtn");
+const stopBtn = document.getElementById("stopBtn");
+const statusText = document.getElementById("status");
+const gainControl = document.getElementById("gainControl");
+
+startBtn.onclick = async () => {
+    try{
+        micStream = await navigator.mediaDevices.getUserMedia({
+            audio:{
+                echoCancellation:true,
+                noiseSuppression:true,
+                autoGainControl:false
+            }
+        });
+
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        source = audioContext.createMediaStreamSource(micStream);
+        gainNode = audioContext.createGain();
+
+        gainNode.gain.value = gainControl.value;
+
+        source.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+
+        startBtn.disabled = true;
+        stopBtn.disabled = false;
+        statusText.innerText = "Mic ON";
+        statusText.style.color = "#00e676";
+
+    }catch(err){
+        alert("Mic access denied or not supported");
+        console.error(err);
+    }
+};
+
+stopBtn.onclick = () => {
+    micStream.getTracks().forEach(track => track.stop());
+    audioContext.close();
+    startBtn.disabled = false;
+    stopBtn.disabled = true;
+    statusText.innerText = "Mic Off";
+    statusText.style.color = "white";
+};
+
+gainControl.oninput = () => {
+    if(gainNode){
+        gainNode.gain.value = gainControl.value;
+    }
+};
+</script>
+
+</body>
+</html>
